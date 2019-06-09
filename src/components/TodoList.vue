@@ -1,24 +1,28 @@
 <template>
-  <div class="hello">
+  <div class="todoList">
     <v-card>
-      <v-toolbar class="blue-grey darken-1" dark card>
-        <v-toolbar-title>Todo List</v-toolbar-title>
+      <v-toolbar class="blue-grey" dark card dense>
+        <v-toolbar-title class="subheading">Todo List</v-toolbar-title>
         <v-spacer></v-spacer>
 
         <v-btn @click.stop="dialog = true" icon>
           <v-icon>add</v-icon>
         </v-btn>
+        <v-btn @click.stop="openCalendar" icon>
+          <v-icon>open_in_new</v-icon>
+        </v-btn>
       </v-toolbar>
 
-      <v-list subheader two-line>
+      <v-list dense subheader two-line>
         <v-subheader v-if="todos.length === 0">No Task.</v-subheader>
         <v-subheader v-else>
-          
-          <v-switch class="text-xs-right" v-model="filter"></v-switch>All Task.
+          <v-switch class="text-xs-right" v-model="filtered"></v-switch>
+          <span v-if="!filtered">All tasks: {{computedTodos.length}}</span>
+          <span v-else>Uncomplete tasks: {{computedTodos.length}}</span>
         </v-subheader>
 
-        <div v-for="(todo, i) in todos" :key="i">
-          <v-list-tile ripple @click.prevent="toggleTodoDone(i)">
+        <div v-for="(todo, i) in computedTodos" :key="todo.time">
+          <v-list-tile @click.stop="todo.done = !todo.done">
             <v-list-tile-action>
               <v-checkbox color="blue-grey darken-1" readonly v-model="todo.done"></v-checkbox>
             </v-list-tile-action>
@@ -27,8 +31,8 @@
             </v-list-tile-content>
 
             <v-list-tile-action>
-              <v-list-tile-action-text>{{time}}</v-list-tile-action-text>
-              <v-btn icon flat color="red lighten-3" @click="removeTodo(i)">
+              <v-list-tile-action-text>{{todo.time}}</v-list-tile-action-text>
+              <v-btn icon flat color="red lighten-3" @click.stop="removeTodo(i)">
                 <v-icon>close</v-icon>
               </v-btn>
             </v-list-tile-action>
@@ -39,6 +43,7 @@
       </v-list>
     </v-card>
 
+    <!-- dialog -->
     <v-layout row justify-center>
       <v-dialog max-width="380" v-model="dialog">
         <v-card>
@@ -46,16 +51,27 @@
             <span>Add a Todo</span>
           </v-card-title>
           <v-card-text>
-            <v-text-field v-model="newTodo" label="My Task"></v-text-field>
+            <v-text-field autofocus v-model="newTodo" label="My Task" @keyup.enter="addTodo"></v-text-field>
           </v-card-text>
           <v-card-actions>
             <v-spacer></v-spacer>
-            <v-btn flat @click="dialog = false">Close</v-btn>
+            <v-btn flat @click.prevent="dialog = false">Close</v-btn>
             <v-btn color="blue-grey darken-2" flat @click="addTodo">Save</v-btn>
           </v-card-actions>
         </v-card>
       </v-dialog>
     </v-layout>
+
+    <!-- snackbar -->
+    <v-snackbar v-model="snackbar.state" right top color="confirm">
+      Confirm delete
+      <v-btn flat icon @click="confirmRemoveTdo">
+        <v-icon>done</v-icon>
+      </v-btn>
+      <v-btn flat icon @click="snackbar.state = false">
+        <v-icon>close</v-icon>
+      </v-btn>
+    </v-snackbar>
   </div>
 </template>
 
@@ -63,33 +79,65 @@
 import { Component, Prop, Vue } from "vue-property-decorator";
 
 @Component
-export default class HelloWorld extends Vue {
+export default class TodoList extends Vue {
   dialog: boolean = false;
-  filter: boolean = false;
+  snackbar: { state: boolean; index: number } = { state: false, index: -1 };
+  filtered: boolean = false;
+
   newTodo: string = "";
   todo: string[] = [];
-  todos: { title: string; done: boolean }[] = [];
-  time: string = new Date().toLocaleTimeString();
+  todos: { title: string; time: string; done: boolean }[] = [];
+
+  mounted() {
+    if (localStorage.getItem("todos")) {
+      try {
+        this.todos = JSON.parse(localStorage.getItem("todos")!);
+      } catch (e) {
+        localStorage.removeItem("todos");
+      }
+    }
+  }
+
+  get computedTodos(): any {
+    if (!this.filtered) return this.todos;
+    return this.todos.filter(todo => todo.done === false);
+  }
 
   addTodo(): void {
     var value = this.newTodo && this.newTodo.trim();
     if (!value) {
       return;
     }
-    this.todos.push({
+    this.todos.unshift({
       title: this.newTodo,
+      time: new Date().toLocaleTimeString(),
       done: false
     });
-    this.dialog = false;
+    // save to the localstorage
+    this.saveTodos();
+
+    // this.dialog = false;
     this.newTodo = "";
   }
 
-  toggleTodoDone(i: number): void {
-    this.todos[i].done = !this.todos[i].done;
+  removeTodo(index: number): void {
+    this.snackbar.state = true;
+    this.snackbar.index = index;
   }
 
-  removeTodo(index: number): void {
-    this.todos.splice(index, 1);
+  confirmRemoveTdo(): void {
+    this.todos.splice(this.snackbar.index, 1);
+    this.saveTodos();
+    this.snackbar.state = false;
+  }
+
+  saveTodos(): void {
+    const parsed = JSON.stringify(this.todos);
+    localStorage.setItem("todos", parsed);
+  }
+
+  openCalendar():void {
+    window.location.href = 'https://calendar.google.com/calendar/r?tab=cc'
   }
 }
 </script>
@@ -98,6 +146,6 @@ export default class HelloWorld extends Vue {
 <style scoped lang="scss">
 .done {
   text-decoration: line-through;
-  color: #ccc;
+  color: #bdbdbd;
 }
 </style>
